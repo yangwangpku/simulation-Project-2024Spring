@@ -11,11 +11,11 @@ namespace VCX::Labs::RigidBody {
     private:
         Common::UI _ui;
 
-        CaseRigidBody        _caseBox;
+        CaseRigidBody        _caseRigidBody;
 
         std::size_t _caseId = 0;
 
-        std::vector<std::reference_wrapper<Common::ICase>> _cases = {_caseBox};
+        std::vector<std::reference_wrapper<Common::ICase>> _cases = {_caseRigidBody};
 
     public:
         App();

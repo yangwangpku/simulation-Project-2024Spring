@@ -3,6 +3,15 @@
 #include "Engine/app.h"
 #include <iostream>
 
+static glm::vec3 eigen2glm(const Eigen::Vector3f& eigenVec) {
+    return glm::vec3(eigenVec.x(), eigenVec.y(), eigenVec.z());
+}
+
+static Eigen::Vector3f glm2eigen(const glm::vec3& glmVec) {
+    return Eigen::Vector3f(glmVec.x, glmVec.y, glmVec.z);
+}
+
+
 namespace VCX::Labs::RigidBody {
 
     CaseRigidBody::CaseRigidBody():
@@ -36,6 +45,10 @@ namespace VCX::Labs::RigidBody {
             ImGui::InputFloat("pos_x", &_center[0]);
             ImGui::InputFloat("pos_y", &_center[1]);
             ImGui::InputFloat("pos_z", &_center[2]);
+
+            ImGui::InputFloat("velocity_x", &_velocity[0]);
+            ImGui::InputFloat("velocity_y", &_velocity[1]);
+            ImGui::InputFloat("velocity_z", &_velocity[2]);
         }
         ImGui::Spacing();
     }
@@ -58,18 +71,21 @@ namespace VCX::Labs::RigidBody {
         glLineWidth(.5f);
 
         std::vector<glm::vec3> VertsPosition;
-        glm::vec3              new_x = _dim[0] / 2 * glm::vec3(1.f, 0.f, 0.f);
-        glm::vec3              new_y = _dim[1] / 2 * glm::vec3(0.f, 1.f, 0.f);
-        glm::vec3              new_z = _dim[2] / 2 * glm::vec3(0.f, 0.f, 1.f);
+
+        Eigen::Matrix3f orientationMatrix = _orientation.toRotationMatrix();
+        Eigen::Vector3f new_x = (_dim[0] / 2) * orientationMatrix * Eigen::Vector3f(1.f, 0.f, 0.f);
+        Eigen::Vector3f new_y = (_dim[1] / 2) * orientationMatrix * Eigen::Vector3f(0.f, 1.f, 0.f);
+        Eigen::Vector3f new_z = (_dim[2] / 2) * orientationMatrix * Eigen::Vector3f(0.f, 0.f, 1.f);
+
         VertsPosition.resize(8);
-        VertsPosition[0] = _center - new_x + new_y + new_z;
-        VertsPosition[1] = _center + new_x + new_y + new_z;
-        VertsPosition[2] = _center + new_x + new_y - new_z;
-        VertsPosition[3] = _center - new_x + new_y - new_z;
-        VertsPosition[4] = _center - new_x - new_y + new_z;
-        VertsPosition[5] = _center + new_x - new_y + new_z;
-        VertsPosition[6] = _center + new_x - new_y - new_z;
-        VertsPosition[7] = _center - new_x - new_y - new_z;
+        VertsPosition[0] = eigen2glm(_center - new_x + new_y + new_z);
+        VertsPosition[1] = eigen2glm(_center + new_x + new_y + new_z);
+        VertsPosition[2] = eigen2glm(_center + new_x + new_y - new_z);
+        VertsPosition[3] = eigen2glm(_center - new_x + new_y - new_z);
+        VertsPosition[4] = eigen2glm(_center - new_x - new_y + new_z);
+        VertsPosition[5] = eigen2glm(_center + new_x - new_y + new_z);
+        VertsPosition[6] = eigen2glm(_center + new_x - new_y - new_z);
+        VertsPosition[7] = eigen2glm(_center - new_x - new_y - new_z);
 
         auto span_bytes = Engine::make_span_bytes<glm::vec3>(VertsPosition);
 
@@ -94,7 +110,12 @@ namespace VCX::Labs::RigidBody {
     }
 
     void CaseRigidBody::Advance(float timeDelta) {
-        _center += timeDelta * _velocity;
+        _center += timeDelta * _velocity;   // update position
+
+        Eigen::Quaternionf _angularVelocityQuaternion(0, _angularVelocity.x() * timeDelta * 0.5f, _angularVelocity.y() * timeDelta * 0.5f, _angularVelocity.z() * timeDelta * 0.5f);
+
+        _orientation.coeffs() += (_angularVelocityQuaternion*_orientation).coeffs();
+        _orientation.normalize();
     }
 
     void CaseRigidBody::OnProcessInput(ImVec2 const & pos) {
@@ -102,8 +123,8 @@ namespace VCX::Labs::RigidBody {
     }
 
     void CaseRigidBody::OnProcessMouseControl(glm::vec3 mouseDelta) {
-        float movingScale = 0.1f;
-        _velocity = mouseDelta * movingScale;
+        float movingScale = 1.0f;
+        _velocity = glm2eigen(mouseDelta) * movingScale;
     }
 
 } // namespace VCX::Labs::GettingStarted

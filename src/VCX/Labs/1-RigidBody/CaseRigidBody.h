@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
 #include "Engine/GL/Frame.hpp"
 #include "Engine/GL/Program.h"
 #include "Engine/GL/RenderItem.h"
@@ -30,9 +33,16 @@ namespace VCX::Labs::RigidBody {
         Common::OrbitCameraManager          _cameraManager;
         Engine::GL::UniqueIndexedRenderItem _boxItem;  // render the box
         Engine::GL::UniqueIndexedRenderItem _lineItem; // render line on box
-        glm::vec3                           _velocity { 0.1f, 0.1f, 0.1f };
-        glm::vec3                           _center { 0.f, 0.f, 0.f };
-        glm::vec3                           _dim { 1.f, 2.f, 3.f };
-        glm::vec3                           _boxColor { 121.0f / 255, 207.0f / 255, 171.0f / 255 };
+        glm::vec3                     _boxColor { 121.0f / 255, 207.0f / 255, 171.0f / 255 };
+
+        Eigen::Quaternionf                  _orientation {1.0f, 0.0f, 0.0f, 0.0f}; // Quaternion for orientation
+        // Eigen::Quaternionf                  _orientation {0.9f, 0.3f, 0.3f, 0.1f}; // Quaternion for orientation
+        // Eigen::Vector3f                     _angularVelocity {0.0f, 0.0f, 0.0f}; // Angular velocity
+        Eigen::Vector3f                     _angularVelocity {1.0f, 0.0f, 0.0f}; // Angular velocity
+        // Eigen::Vector3f                     _velocity { 0.1f, 0.1f, 0.1f };
+        Eigen::Vector3f                     _velocity { 0.f, 0.f, 0.f };
+        Eigen::Vector3f                     _center { 0.f, 0.f, 0.f };
+
+        Eigen::Vector3f                     _dim { 1.f, 2.f, 3.f };
     };
-} // namespace VCX::Labs::GettingStarted
+} // namespace VCX::Labs::RigidBody
