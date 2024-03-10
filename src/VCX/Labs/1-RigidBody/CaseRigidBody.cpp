@@ -55,7 +55,8 @@ namespace VCX::Labs::RigidBody {
 
     Common::CaseRenderResult CaseRigidBody::OnRender(std::pair<std::uint32_t, std::uint32_t> const desiredSize) {
         // apply mouse control first
-        OnProcessMouseControl(_cameraManager.getMouseMove());
+        std::pair<glm::vec3,glm::vec3> force =  _forceManager.getForce(eigen2glm(_center));
+        OnProcessMouseControl(force);
 
         Advance(Engine::GetDeltaTime());
 
@@ -120,11 +121,17 @@ namespace VCX::Labs::RigidBody {
 
     void CaseRigidBody::OnProcessInput(ImVec2 const & pos) {
         _cameraManager.ProcessInput(_camera, pos);
+        _forceManager.ProcessInput(_camera, pos);
     }
 
-    void CaseRigidBody::OnProcessMouseControl(glm::vec3 mouseDelta) {
-        float movingScale = 1.0f;
-        _velocity = glm2eigen(mouseDelta) * movingScale;
+    void CaseRigidBody::OnProcessMouseControl(std::pair<glm::vec3,glm::vec3> force) {
+        glm::vec3 forceDelta = force.first;
+        glm::vec3 forcePoint = force.second;
+        float movingScale = 1.f;
+
+        Eigen::Vector3f torque = (glm2eigen(forcePoint) - _center).cross(glm2eigen(forceDelta));
+        _angularVelocity += (GetInertiaMatrix().inverse())*torque;
+        // _velocity += glm2eigen(forceDelta) * movingScale;
     }
 
 } // namespace VCX::Labs::GettingStarted
