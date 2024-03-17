@@ -1,4 +1,3 @@
-#include <fcl/narrowphase/collision.h>
 #include "Labs/1-RigidBody/CaseTwoBody.h"
 #include "Labs/1-RigidBody/Box.h"
 #include "Labs/Common/ImGuiHelper.h"
@@ -15,6 +14,29 @@ static Eigen::Vector3f glm2eigen(const glm::vec3& glmVec) {
 
 
 namespace VCX::Labs::RigidBody {
+    static constexpr auto c_Cases = std::array<char const *, 3> {
+        "Face-Vertex Collision",
+        "Line-Line Collision",
+        "Face-Face Collision"
+    };
+
+    static const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> c_BoxDims = {
+        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{1, 1, 1}, Eigen::Vector3f{1, 1, 1}},
+        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0.5, 0.5, 1.5}, Eigen::Vector3f{0.5, 1.5, 0.5}},
+        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{1, 1, 1}, Eigen::Vector3f{1, 1, 1}}
+    };
+
+    static const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> c_BoxPositions = {
+        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0, 0, 0}, Eigen::Vector3f{3, 0, 0}},
+        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0, 0, 0}, Eigen::Vector3f{3, -0.5, 0}},
+        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0, 0, 0}, Eigen::Vector3f{3, 0, 0}}
+    };
+
+    static const std::array<std::pair<Eigen::Quaternionf, Eigen::Quaternionf>, 3> c_BoxOrientations = {
+        std::pair<Eigen::Quaternionf, Eigen::Quaternionf>{Eigen::Quaternionf{1, 0, 0, 0}, Eigen::Quaternionf{0.3, 0.9, 0.3, 0.1}},
+        std::pair<Eigen::Quaternionf, Eigen::Quaternionf>{Eigen::Quaternionf{1, 0, 0, 0}, Eigen::Quaternionf{0.3, 0.3, 0.9, 0.1}},
+        std::pair<Eigen::Quaternionf, Eigen::Quaternionf>{Eigen::Quaternionf{1, 0, 0, 0}, Eigen::Quaternionf{1, 0, 0, 0}}
+    };
 
     CaseTwoBody::CaseTwoBody():
         _program(
@@ -70,10 +92,25 @@ namespace VCX::Labs::RigidBody {
             Reset();
             return;
         }
+
+        if(_recompute) {
+            _recompute = false;
+            _initialBox[0].center = c_BoxPositions[_caseId].first;
+            _initialBox[1].center = c_BoxPositions[_caseId].second;
+
+            _initialBox[0].orientation = c_BoxOrientations[_caseId].first;
+            _initialBox[1].orientation = c_BoxOrientations[_caseId].second;
+
+            _initialBox[0].dim = c_BoxDims[_caseId].first;
+            _initialBox[1].dim = c_BoxDims[_caseId].second;
+            _box[0] = _initialBox[0];
+            _box[1] = _initialBox[1];
+        }
     }
 
 
     void CaseTwoBody::OnSetupPropsUI() {
+        _recompute |= ImGui::Combo("Case", &_caseId, c_Cases.data(), c_Cases.size());
         if (ImGui::CollapsingHeader("Appearance", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::ColorEdit3("Box Color", glm::value_ptr(_box[0].boxColor));
             ImGui::SliderFloat("Box 0 dim_x", &_initialBox[0].dim[0], 0.5, 4);
@@ -170,62 +207,62 @@ namespace VCX::Labs::RigidBody {
     }
 
 
-    void CaseTwoBody::DetectCollision() {
-        Box & b0 = _box[0];
-        Box & b1 = _box[1];
-        // Eigen::Vector3f RigidBody::dim - size of a box
-        using CollisionGeometryPtr_t = std::shared_ptr<fcl::CollisionGeometry<float>>;
-        CollisionGeometryPtr_t box_geometry_A(new fcl::Box<float>(b0.dim[0], b0.dim[1],
-        b0.dim[2]));
-        CollisionGeometryPtr_t box_geometry_B(new fcl::Box<float>(b1.dim[0], b1.dim[1],
-        b1.dim[2]));
-        // Eigen::Vector3f RigidBody::x - position of a box, Eigen::Quaternionf
-        fcl::CollisionObject<float> box_A(box_geometry_A,
-        fcl::Transform3f(Eigen::Translation3f(b0.center)*b0.orientation));
+    // void CaseTwoBody::DetectCollision() {
+    //     Box & b0 = _box[0];
+    //     Box & b1 = _box[1];
+    //     // Eigen::Vector3f RigidBody::dim - size of a box
+    //     using CollisionGeometryPtr_t = std::shared_ptr<fcl::CollisionGeometry<float>>;
+    //     CollisionGeometryPtr_t box_geometry_A(new fcl::Box<float>(b0.dim[0], b0.dim[1],
+    //     b0.dim[2]));
+    //     CollisionGeometryPtr_t box_geometry_B(new fcl::Box<float>(b1.dim[0], b1.dim[1],
+    //     b1.dim[2]));
+    //     // Eigen::Vector3f RigidBody::x - position of a box, Eigen::Quaternionf
+    //     fcl::CollisionObject<float> box_A(box_geometry_A,
+    //     fcl::Transform3f(Eigen::Translation3f(b0.center)*b0.orientation));
 
-        fcl::CollisionObject<float> box_B(box_geometry_B,
-        fcl::Transform3f(Eigen::Translation3f(b1.center)*b1.orientation));
-        // Compute collision - at most 8 contacts and return contact information.
-        fcl::CollisionRequest<float> collisionRequest(1, true);
-        fcl::CollisionResult<float> collisionResult;
-        fcl::collide(&box_A, &box_B, collisionRequest, collisionResult);
-        _collisionResult = collisionResult;
-    }
+    //     fcl::CollisionObject<float> box_B(box_geometry_B,
+    //     fcl::Transform3f(Eigen::Translation3f(b1.center)*b1.orientation));
+    //     // Compute collision - at most 8 contacts and return contact information.
+    //     fcl::CollisionRequest<float> collisionRequest(1, true);
+    //     fcl::CollisionResult<float> collisionResult;
+    //     fcl::collide(&box_A, &box_B, collisionRequest, collisionResult);
+    //     _collisionResult = collisionResult;
+    // }
 
-    void CaseTwoBody::SolveCollision() {
-        if(!_collisionResult.isCollision()) {
-            return;
-        }
+    // void CaseTwoBody::SolveCollision() {
+    //     if(!_collisionResult.isCollision()) {
+    //         return;
+    //     }
         
-        Box & b0 = _box[0];
-        Box & b1 = _box[1];
+    //     Box & b0 = _box[0];
+    //     Box & b1 = _box[1];
 
-        std::vector<fcl::Contact<float>> contacts;
-        _collisionResult.getContacts(contacts);
-        Eigen::Vector3f contact_pos = contacts[0].pos;
-        Eigen::Vector3f contact_normal = -contacts[0].normal;
+    //     std::vector<fcl::Contact<float>> contacts;
+    //     _collisionResult.getContacts(contacts);
+    //     Eigen::Vector3f contact_pos = contacts[0].pos;
+    //     Eigen::Vector3f contact_normal = -contacts[0].normal;
 
-        // Compute relative velocity
-        Eigen::Vector3f v0 = b0.velocity + b0.angularVelocity.cross(contact_pos - b0.center);
-        Eigen::Vector3f v1 = b1.velocity + b1.angularVelocity.cross(contact_pos - b1.center);
-        float relative_velocity = (v0 - v1).dot(contact_normal);
+    //     // Compute relative velocity
+    //     Eigen::Vector3f v0 = b0.velocity + b0.angularVelocity.cross(contact_pos - b0.center);
+    //     Eigen::Vector3f v1 = b1.velocity + b1.angularVelocity.cross(contact_pos - b1.center);
+    //     float relative_velocity = (v0 - v1).dot(contact_normal);
 
-        // return if objects are separating
-        if(relative_velocity > 0) {
-            return;
-        }
+    //     // return if objects are separating
+    //     if(relative_velocity > 0) {
+    //         return;
+    //     }
 
-        // Compute impulse
-        float e = 0.9f; // coefficient of restitution
-        float numerator = -(1 + e) * relative_velocity;
-        float denominator = 1 / b0.mass + 1 / b1.mass + contact_normal.dot((b0.GetInertiaMatrix().inverse() * (contact_pos - b0.center).cross(contact_normal)).cross(contact_pos - b0.center)) + contact_normal.dot((b1.GetInertiaMatrix().inverse() * (contact_pos - b1.center).cross(contact_normal)).cross(contact_pos - b1.center));
-        float impulse = numerator / denominator;
+    //     // Compute impulse
+    //     float e = 0.9f; // coefficient of restitution
+    //     float numerator = -(1 + e) * relative_velocity;
+    //     float denominator = 1 / b0.mass + 1 / b1.mass + contact_normal.dot((b0.GetInertiaMatrix().inverse() * (contact_pos - b0.center).cross(contact_normal)).cross(contact_pos - b0.center)) + contact_normal.dot((b1.GetInertiaMatrix().inverse() * (contact_pos - b1.center).cross(contact_normal)).cross(contact_pos - b1.center));
+    //     float impulse = numerator / denominator;
 
-        // Apply impulse
-        b0.velocity += impulse / b0.mass * contact_normal;
-        b1.velocity -= impulse / b1.mass * contact_normal;
-        b0.angularVelocity += impulse * b0.GetInertiaMatrix().inverse() * (contact_pos - b0.center).cross(contact_normal);
-        b1.angularVelocity -= impulse * b1.GetInertiaMatrix().inverse() * (contact_pos - b1.center).cross(contact_normal);
-    }
+    //     // Apply impulse
+    //     b0.velocity += impulse / b0.mass * contact_normal;
+    //     b1.velocity -= impulse / b1.mass * contact_normal;
+    //     b0.angularVelocity += impulse * b0.GetInertiaMatrix().inverse() * (contact_pos - b0.center).cross(contact_normal);
+    //     b1.angularVelocity -= impulse * b1.GetInertiaMatrix().inverse() * (contact_pos - b1.center).cross(contact_normal);
+    // }
 
 } // namespace VCX::Labs::GettingStarted

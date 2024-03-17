@@ -33,6 +33,8 @@ namespace VCX::Labs::RigidBody {
         void SolveCollision();
 
     private:
+        int                                 _caseId = 0;
+        bool                                _recompute = true;
         Engine::GL::UniqueProgram           _program;
         Engine::GL::UniqueRenderFrame       _frame;
         Engine::Camera                      _camera { .Eye = glm::vec3(-3, 3, 3) };
