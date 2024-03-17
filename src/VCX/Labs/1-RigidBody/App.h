@@ -3,7 +3,8 @@
 #include <vector>
 
 #include "Engine/app.h"
-#include "Labs/1-RigidBody/CaseRigidBody.h"
+#include "Labs/1-RigidBody/CaseSingleBody.h"
+#include "Labs/1-RigidBody/CaseTwoBody.h"
 #include "Labs/Common/UI.h"
 
 namespace VCX::Labs::RigidBody {
@@ -11,11 +12,12 @@ namespace VCX::Labs::RigidBody {
     private:
         Common::UI _ui;
 
-        CaseRigidBody        _caseRigidBody;
+        CaseSingleBody        _CaseSingleBody;
+        CaseTwoBody        _CaseTwoBody;
 
         std::size_t _caseId = 0;
 
-        std::vector<std::reference_wrapper<Common::ICase>> _cases = {_caseRigidBody};
+        std::vector<std::reference_wrapper<Common::ICase>> _cases = {_CaseSingleBody,_CaseTwoBody};
 
     public:
         App();
