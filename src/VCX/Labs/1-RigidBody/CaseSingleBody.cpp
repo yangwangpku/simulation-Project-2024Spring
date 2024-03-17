@@ -19,7 +19,8 @@ namespace VCX::Labs::RigidBody {
             Engine::GL::UniqueProgram({ Engine::GL::SharedShader("assets/shaders/flat.vert"),
                                         Engine::GL::SharedShader("assets/shaders/flat.frag") })),
         _boxItem(Engine::GL::VertexLayout().Add<glm::vec3>("position", Engine::GL::DrawFrequency::Stream, 0), Engine::GL::PrimitiveType::Triangles),
-        _lineItem(Engine::GL::VertexLayout().Add<glm::vec3>("position", Engine::GL::DrawFrequency::Stream, 0), Engine::GL::PrimitiveType::Lines) {
+        _lineItem(Engine::GL::VertexLayout().Add<glm::vec3>("position", Engine::GL::DrawFrequency::Stream, 0), Engine::GL::PrimitiveType::Lines)
+         {
         //     3-----2
         //    /|    /|
         //   0 --- 1 |
@@ -33,6 +34,9 @@ namespace VCX::Labs::RigidBody {
         _boxItem.UpdateElementBuffer(tri_index);
         _cameraManager.AutoRotate = false;
         _cameraManager.Save(_camera);
+
+        _box.velocity = Eigen::Vector3f(1, 0, 0);
+        _box.angularVelocity = Eigen::Vector3f(1, 0, 0);
     }
 
     void CaseSingleBody::OnSetupPropsUI() {
