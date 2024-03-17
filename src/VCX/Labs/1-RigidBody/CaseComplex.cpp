@@ -1,9 +1,10 @@
-#include "Labs/1-RigidBody/CaseTwoBody.h"
+#include "Labs/1-RigidBody/CaseComplex.h"
 #include "Labs/1-RigidBody/Box.h"
 #include "Labs/Common/ImGuiHelper.h"
 #include "Engine/app.h"
-#include <iostream>
 #include "Collision.h"
+#include <iostream>
+#include <random>
 
 static glm::vec3 eigen2glm(const Eigen::Vector3f& eigenVec) {
     return glm::vec3(eigenVec.x(), eigenVec.y(), eigenVec.z());
@@ -13,40 +14,52 @@ static Eigen::Vector3f glm2eigen(const glm::vec3& glmVec) {
     return Eigen::Vector3f(glmVec.x, glmVec.y, glmVec.z);
 }
 
+static Eigen::Quaternionf randomQuaternion() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dist(-1.0, 1.0);
+
+    // Generate four random numbers
+    float w = dist(gen);
+    float x = dist(gen);
+    float y = dist(gen);
+    float z = dist(gen);
+
+    // Create the quaternion
+    Eigen::Quaternionf q(w, x, y, z);
+
+    // Normalize to ensure it's a valid rotation quaternion
+    q.normalize();
+
+    return q;
+}
+
+static Eigen::Vector3f randomVector(Eigen::Vector3f lowerBound, Eigen::Vector3f upperBound) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> distx(lowerBound.x(), upperBound.x());
+    std::uniform_real_distribution<float> disty(lowerBound.y(), upperBound.y());
+    std::uniform_real_distribution<float> distz(lowerBound.z(), upperBound.z());
+
+    // Generate three random numbers
+    float x = distx(gen);
+    float y = disty(gen);
+    float z = distz(gen);
+
+    // Create the vector
+    Eigen::Vector3f v(x, y, z);
+
+    return v;
+}
 
 namespace VCX::Labs::RigidBody {
-    static constexpr auto c_Cases = std::array<char const *, 3> {
-        "Face-Vertex Collision",
-        "Line-Line Collision",
-        "Face-Face Collision"
-    };
 
-    static const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> c_BoxDims = {
-        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{1, 1, 1}, Eigen::Vector3f{1, 1, 1}},
-        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0.5, 0.5, 1.5}, Eigen::Vector3f{0.5, 1.5, 0.5}},
-        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{1, 1, 1}, Eigen::Vector3f{1, 1, 1}}
-    };
-
-    static const std::array<std::pair<Eigen::Vector3f, Eigen::Vector3f>, 3> c_BoxPositions = {
-        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0, 0, 0}, Eigen::Vector3f{3, 0, 0}},
-        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0, 0, 0}, Eigen::Vector3f{3, -0.5, 0}},
-        std::pair<Eigen::Vector3f, Eigen::Vector3f>{Eigen::Vector3f{0, 0, 0}, Eigen::Vector3f{3, 0, 0}}
-    };
-
-    static const std::array<std::pair<Eigen::Quaternionf, Eigen::Quaternionf>, 3> c_BoxOrientations = {
-        std::pair<Eigen::Quaternionf, Eigen::Quaternionf>{Eigen::Quaternionf{1, 0, 0, 0}, Eigen::Quaternionf{0.3, 0.9, 0.3, 0.1}},
-        std::pair<Eigen::Quaternionf, Eigen::Quaternionf>{Eigen::Quaternionf{1, 0, 0, 0}, Eigen::Quaternionf{0.3, 0.3, 0.9, 0.1}},
-        std::pair<Eigen::Quaternionf, Eigen::Quaternionf>{Eigen::Quaternionf{1, 0, 0, 0}, Eigen::Quaternionf{1, 0, 0, 0}}
-    };
-
-    CaseTwoBody::CaseTwoBody():
+    CaseComplex::CaseComplex():
         _program(
             Engine::GL::UniqueProgram({ Engine::GL::SharedShader("assets/shaders/flat.vert"),
                                         Engine::GL::SharedShader("assets/shaders/flat.frag") })),
         _boxItem(Engine::GL::VertexLayout().Add<glm::vec3>("position", Engine::GL::DrawFrequency::Stream, 0), Engine::GL::PrimitiveType::Triangles),
-        _lineItem(Engine::GL::VertexLayout().Add<glm::vec3>("position", Engine::GL::DrawFrequency::Stream, 0), Engine::GL::PrimitiveType::Lines),
-        _boxNum(2),
-        _box{},_initialBox{} {
+        _lineItem(Engine::GL::VertexLayout().Add<glm::vec3>("position", Engine::GL::DrawFrequency::Stream, 0), Engine::GL::PrimitiveType::Lines) {
         //     3-----2
         //    /|    /|
         //   0 --- 1 |
@@ -76,78 +89,56 @@ namespace VCX::Labs::RigidBody {
         _cameraManager.AutoRotate = false;
         _cameraManager.Save(_camera);
 
-        _box[0].velocity = Eigen::Vector3f(0.5, 0, 0);
-        _box[0].angularVelocity = Eigen::Vector3f(0., 0, 0);
-
-        _box[1].velocity = Eigen::Vector3f(-0.5, 0, 0);
-        _box[1].angularVelocity = Eigen::Vector3f(0., 0, 0);
-
-        _initialBox[0] = _box[0];
-        _initialBox[1] = _box[1];
+        GenerateBox();
 
     }
 
-    void CaseTwoBody::Reset() {
-        _box[0] = _initialBox[0];
-        _box[1] = _initialBox[1];
+    void CaseComplex::GenerateBox() {
+        float groundSize = 8;
+        float groundHeight = 0.5;
+    
+        // fixed ground
+        _box[0] = Box({groundSize,groundHeight,groundSize},{0,-5,0},{1,0,0,0},10000);  
+
+        // fixed wall
+        _box[1] = Box({groundHeight,groundSize,groundSize},{-5,0,0},{0,1,0,0},10000);
+        _box[2] = Box({groundHeight,groundSize,groundSize},{5,0,0},{0,1,0,0},10000);
+        _box[3] = Box({groundSize,groundSize,groundHeight},{0,0,5},{0,0,0,1},10000);
+
+
+        for(int i=_fixedboxNum; i < _boxNum; i++)
+        {
+            float randomness = 0.2;
+            // add some randomness to the box to make the demo more interesting
+            _box[i] = Box({1,1,1},randomVector({-randomness,-5 + 2*i - randomness,-randomness},{randomness,-5 + 2*i + randomness,randomness}) ,randomQuaternion(),1);
+            _box[i].velocity = randomVector({-randomness,-1-randomness,-randomness},{randomness,-1+randomness,randomness});
+        }
     }
 
-    void CaseTwoBody::OnProcessMouseControl() {
+    void CaseComplex::OnProcessMouseControl(glm::vec3 mouseDelta) {
         if (ImGui::IsKeyPressed(ImGuiKey_F)) {
-            Reset();
+            GenerateBox();
             return;
         }
 
-        if(_recompute) {
-            _recompute = false;
-            _initialBox[0].center = c_BoxPositions[_caseId].first;
-            _initialBox[1].center = c_BoxPositions[_caseId].second;
-
-            _initialBox[0].orientation = c_BoxOrientations[_caseId].first;
-            _initialBox[1].orientation = c_BoxOrientations[_caseId].second;
-
-            _initialBox[0].dim = c_BoxDims[_caseId].first;
-            _initialBox[1].dim = c_BoxDims[_caseId].second;
-            _box[0] = _initialBox[0];
-            _box[1] = _initialBox[1];
-        }
+        float movingScale = 0.1f;
+        _box[0].center += glm2eigen(mouseDelta) * movingScale;
     }
 
 
-    void CaseTwoBody::OnSetupPropsUI() {
-        _recompute |= ImGui::Combo("Case", &_caseId, c_Cases.data(), c_Cases.size());
+    void CaseComplex::OnSetupPropsUI() {
         if (ImGui::CollapsingHeader("Appearance", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::ColorEdit3("Box Color", glm::value_ptr(_box[0].boxColor));
         }
         if (ImGui::CollapsingHeader("Physics Parameter", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("Restitution", &_restitution, 0, 1);
-            ImGui::SliderFloat("Box 0 mass", &_initialBox[0].mass, 0.1, 10);
-            ImGui::SliderFloat("Box 1 mass", &_initialBox[1].mass, 0.1, 10);
-        }
-
-        if (ImGui::CollapsingHeader("Box Parameter")) {
-            ImGui::SliderFloat("Box 0 dim_x", &_initialBox[0].dim[0], 0.5, 4);
-            ImGui::SliderFloat("Box 0 dim_y", &_initialBox[0].dim[1], 0.5, 4);
-            ImGui::SliderFloat("Box 0 dim_z", &_initialBox[0].dim[2], 0.5, 4);
-
-            ImGui::SliderFloat("Box 1 dim_x", &_initialBox[1].dim[0], 0.5, 4);
-            ImGui::SliderFloat("Box 1 dim_y", &_initialBox[1].dim[1], 0.5, 4);
-            ImGui::SliderFloat("Box 1 dim_z", &_initialBox[1].dim[2], 0.5, 4);
-
-            ImGui::InputFloat("Box 0 pos_x", &_initialBox[0].center[0]);
-            ImGui::InputFloat("Box 0 pos_y", &_initialBox[0].center[1]);
-            ImGui::InputFloat("Box 0 pos_z", &_initialBox[0].center[2]);
-
-            ImGui::InputFloat("Box 1 pos_x", &_initialBox[1].center[0]);
-            ImGui::InputFloat("Box 1 pos_y", &_initialBox[1].center[1]);
-            ImGui::InputFloat("Box 1 pos_z", &_initialBox[1].center[2]);
-
+            ImGui::SliderFloat("Gravity", &_gravity, 0, 10);
         }
         ImGui::Spacing();
     }
 
-    Common::CaseRenderResult CaseTwoBody::OnRender(std::pair<std::uint32_t, std::uint32_t> const desiredSize) {
-        OnProcessMouseControl();
+    Common::CaseRenderResult CaseComplex::OnRender(std::pair<std::uint32_t, std::uint32_t> const desiredSize) {
+        OnProcessMouseControl(_cameraManager.getMouseMove());
         Advance(Engine::GetDeltaTime());
 
         // rendering
@@ -202,9 +193,10 @@ namespace VCX::Labs::RigidBody {
         };
     }
 
-    void CaseTwoBody::Advance(float timeDelta) {
-
+    void CaseComplex::Advance(float timeDelta) {
         for(int i=0; i<_boxNum; i++){
+            if(i>=_fixedboxNum)
+                _box[i].velocity.y() -= _gravity * timeDelta; // gravity
             _box[i].center += timeDelta * _box[i].velocity;   // update position
 
             Eigen::Quaternionf _angularVelocityQuaternion(0, _box[i].angularVelocity.x() * timeDelta * 0.5f, _box[i].angularVelocity.y() * timeDelta * 0.5f, _box[i].angularVelocity.z() * timeDelta * 0.5f);
@@ -216,17 +208,22 @@ namespace VCX::Labs::RigidBody {
         SolveCollision();
     }
 
-    void CaseTwoBody::OnProcessInput(ImVec2 const & pos) {
+    void CaseComplex::DetectCollision() {
+        for(int i=0;i<_boxNum;i++)
+        for(int j=i+1;j<_boxNum;j++) {
+            VCX::Labs::RigidBody::DetectCollision(_box[i], _box[j], _collisionResult[i][j]);   
+        }
+    }
+
+    void CaseComplex::SolveCollision() {
+        for(int i=0;i<_boxNum;i++)
+        for(int j=i+1;j<_boxNum;j++) {
+            VCX::Labs::RigidBody::SolveCollision(_box[i], _box[j], _collisionResult[i][j],_restitution);   
+        }
+    }
+
+    void CaseComplex::OnProcessInput(ImVec2 const & pos) {
         _cameraManager.ProcessInput(_camera, pos);
-    }
-
-
-    void CaseTwoBody::DetectCollision() {
-        VCX::Labs::RigidBody::DetectCollision(_box[0], _box[1], _collisionResult);
-    }
-
-    void CaseTwoBody::SolveCollision() {
-        VCX::Labs::RigidBody::SolveCollision(_box[0], _box[1], _collisionResult, _restitution);
     }
 
 } // namespace VCX::Labs::GettingStarted

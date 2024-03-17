@@ -3,13 +3,12 @@
 #include "Labs/1-RigidBody/Box.h"
 #include "Labs/Common/ImGuiHelper.h"
 #include "Engine/app.h"
+#include "Collision.h"
 #include <iostream>
 
 namespace VCX::Labs::RigidBody {
-
-    void CaseTwoBody::DetectCollision() {
-        Box & b0 = _box[0];
-        Box & b1 = _box[1];
+    void DetectCollision(Box &b0, Box &b1, fcl::CollisionResult<float> &collisionResult) {
+        collisionResult.clear();
         // Eigen::Vector3f RigidBody::dim - size of a box
         using CollisionGeometryPtr_t = std::shared_ptr<fcl::CollisionGeometry<float>>;
         CollisionGeometryPtr_t box_geometry_A(new fcl::Box<float>(b0.dim[0], b0.dim[1],
@@ -24,21 +23,17 @@ namespace VCX::Labs::RigidBody {
         fcl::Transform3f(Eigen::Translation3f(b1.center)*b1.orientation));
         // Compute collision - at most 8 contacts and return contact information.
         fcl::CollisionRequest<float> collisionRequest(1, true);
-        fcl::CollisionResult<float> collisionResult;
         fcl::collide(&box_A, &box_B, collisionRequest, collisionResult);
-        _collisionResult = collisionResult;
     }
 
-    void CaseTwoBody::SolveCollision() {
-        if(!_collisionResult.isCollision()) {
+    void SolveCollision(Box &b0, Box &b1, fcl::CollisionResult<float> &collisionResult, float _restitution) {
+        if(!collisionResult.isCollision()) {
+            collisionResult.clear();
             return;
         }
-        
-        Box & b0 = _box[0];
-        Box & b1 = _box[1];
 
         std::vector<fcl::Contact<float>> contacts;
-        _collisionResult.getContacts(contacts);
+        collisionResult.getContacts(contacts);
         Eigen::Vector3f contact_pos = contacts[0].pos;
         Eigen::Vector3f contact_normal = -contacts[0].normal;
 
@@ -53,7 +48,7 @@ namespace VCX::Labs::RigidBody {
         }
 
         // Compute impulse
-        float e = 0.9f; // coefficient of restitution
+        float e = _restitution; // coefficient of restitution
         float numerator = -(1 + e) * relative_velocity;
         float denominator = 1 / b0.mass + 1 / b1.mass + contact_normal.dot((b0.GetInertiaMatrix().inverse() * (contact_pos - b0.center).cross(contact_normal)).cross(contact_pos - b0.center)) + contact_normal.dot((b1.GetInertiaMatrix().inverse() * (contact_pos - b1.center).cross(contact_normal)).cross(contact_pos - b1.center));
         float impulse = numerator / denominator;
@@ -63,6 +58,7 @@ namespace VCX::Labs::RigidBody {
         b1.velocity -= impulse / b1.mass * contact_normal;
         b0.angularVelocity += impulse * b0.GetInertiaMatrix().inverse() * (contact_pos - b0.center).cross(contact_normal);
         b1.angularVelocity -= impulse * b1.GetInertiaMatrix().inverse() * (contact_pos - b1.center).cross(contact_normal);
+        collisionResult.clear();
     }
 
-} // namespace VCX::Labs::GettingStarted
+} // namespace VCX::Labs::RigidBody

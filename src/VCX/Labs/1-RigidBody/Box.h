@@ -7,10 +7,11 @@ namespace VCX::Labs::RigidBody {
 
     struct Box {
     public:
-        Box(Eigen::Vector3f dim={ 1.f, 2.f, 3.f}, Eigen::Vector3f center={0.f,0.f,0.f},Eigen::Quaternionf orientation={1.f,0.f,0.f,0.f}) {
+        Box(Eigen::Vector3f dim={ 1.f, 2.f, 3.f}, Eigen::Vector3f center={0.f,0.f,0.f},Eigen::Quaternionf orientation={1.f,0.f,0.f,0.f}, float mass=1.f) {
             this->dim = dim;
             this->center = center;
             this->orientation = orientation;
+            this->mass = mass;
         };
 
         Eigen::Matrix3f GetInertiaMatrix() {
