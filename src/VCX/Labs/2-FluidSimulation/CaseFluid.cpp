@@ -1,10 +1,10 @@
 #include <spdlog/spdlog.h>
 #include "Engine/app.h"
-#include "Labs/0-GettingStarted/CaseFluid.h"
+#include "Labs/2-FluidSimulation/CaseFluid.h"
 #include "Labs/Common/ImGuiHelper.h"
 #include <iostream>
 
-namespace VCX::Labs::GettingStarted {
+namespace VCX::Labs::FluidSimulation {
     const std::vector<glm::vec3> vertex_pos = {
             glm::vec3(-0.5f, -0.5f, -0.5f),
             glm::vec3(0.5f, -0.5f, -0.5f),  
@@ -48,9 +48,9 @@ namespace VCX::Labs::GettingStarted {
         if(ImGui::Button(_stopped ? "Start Simulation":"Stop Simulation"))
             _stopped = ! _stopped;
         ImGui::Spacing();
-        ImGui::SliderFloat("Mass", &_simulation.Mass, .5f, 5.f);
-        ImGui::SliderFloat("Omega.", &_simulation.Omega, .1f, 1.f);
-        ImGui::SliderFloat("Damp.", &_simulation.Damping, .1f, 1.f);
+        // ImGui::SliderFloat("Mass", &_simulation.Mass, .5f, 5.f);
+        // ImGui::SliderFloat("Omega.", &_simulation.Omega, .1f, 1.f);
+        // ImGui::SliderFloat("Damp.", &_simulation.Damping, .1f, 1.f);
     }
 
 
@@ -89,10 +89,11 @@ namespace VCX::Labs::GettingStarted {
         _BoundaryItem.Draw({ _lineprogram.Use() });
         glLineWidth(1.f);
 
-        Rendering::ModelObject m = Rendering::ModelObject(_sphere,_simulation.Positions);
+        // Rendering::ModelObject m = Rendering::ModelObject(_sphere,_simulation.Positions);
+        Rendering::ModelObject m = Rendering::ModelObject(_sphere,_simulation.m_particlePos);
         auto const & material    = _sceneObject.Materials[0];
         m.Mesh.Draw({ material.Albedo.Use(),  material.MetaSpec.Use(), material.Height.Use(),_program.Use() },
-            _sphere.Mesh.Indices.size(), 0, numofSpheres);
+            _sphere.Mesh.Indices.size(), 0, _simulation.m_iNumSpheres);
         
         glDepthFunc(GL_LEQUAL);
         glDepthFunc(GL_LESS);
@@ -111,30 +112,8 @@ namespace VCX::Labs::GettingStarted {
     }
 
     void CaseFluid::ResetSystem(){
-        glm::vec3 tank(1.0f);
-        glm::vec3 relWater = {0.6f, 0.8f, 0.6f};
-        float           _h = tank.y / _res;
-                        _r = 0.3 * _h; //cell size
-        float           dx = 2.0 * _r;
-        float           dy = sqrt(3.0) / 2.0 * dx;
-        float           dz = dx;
-        
-        int numX = floor((relWater.x * tank.x - 2.0  * _h -2.0 * _r) / dx);
-        int numY = floor((relWater.y * tank.y - 2.0  * _h -2.0 * _r) / dy);
-        int numZ = floor((relWater.z * tank.z - 2.0  * _h -2.0 * _r) / dz);
-        numofSpheres = numX * numY * numZ;
-
-        _simulation.Positions.clear();
-        _simulation.Velocities.clear();
-
-        for(int i = 0 ; i < numX ; i++)
-            for(int j = 0 ; j < numY ; j++)
-                for(int k = 0 ; k < numZ ; k++){
-                    _simulation.Positions.push_back(glm::vec3(_h + _r + dx * i + (j % 2 == 0 ? 0.0 : _r) +  0.1f,
-                     _h + _r + dy * j , _h + _r + dz * k + (j % 2 == 0 ? 0.0 : _r) ) + glm::vec3(-0.5f));
-                     _simulation.InitPositions.push_back(glm::vec3(_h + _r + dx * i + (j % 2 == 0 ? 0.0 : _r),
-                     _h + _r + dy * j, _h + _r + dz * k + (j % 2 == 0 ? 0.0 : _r)) + glm::vec3(-0.5f));
-                    _simulation.Velocities.push_back(glm::vec3(0.0f));
-                }
+        _simulation.setupScene(_res);
+        numofSpheres = _simulation.m_iNumSpheres;
+        _r = _simulation.m_particleRadius; //cell size
     }
 }

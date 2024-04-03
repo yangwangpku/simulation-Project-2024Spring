@@ -11,6 +11,9 @@
 
 namespace VCX::Labs::Fluid {
     struct Simulator {
+        const int EMPTY_CELL = 0; 
+        const int FLUID_CELL = 1; 
+        const int SOLID_CELL = 2;
         std::vector<glm::vec3> m_particlePos; // Particle m_particlePos
         std::vector<glm::vec3> m_particleVel; // Particle Velocity
         std::vector<glm::vec3> m_particleColor;
@@ -43,6 +46,7 @@ namespace VCX::Labs::Fluid {
         float              m_particleRestDensity;
 
         glm::vec3 gravity { 0, -9.81f, 0 };
+        // glm::vec3 gravity { 0, -1.81f, 0 };
 
         void integrateParticles(float timeStep);
         void pushParticlesApart(int numIters);
@@ -58,12 +62,13 @@ namespace VCX::Labs::Fluid {
         void SimulateTimestep(float const dt) {
             int   numSubSteps       = 1;
             int   numParticleIters  = 5;
-            int   numPressureIters  = 30;
+            int   numPressureIters  = 10;
             bool  separateParticles = true;
             float overRelaxation    = 0.5;
-            bool  compensateDrift   = true;
+            bool  compensateDrift   = false;
 
             float     flipRatio = m_fRatio;
+
             glm::vec3 obstaclePos(0.0f); // obstacle can be moved with mouse, as a user interaction
             glm::vec3 obstacleVel(0.0f);
 
@@ -80,12 +85,13 @@ namespace VCX::Labs::Fluid {
                 solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
                 transferVelocities(false, flipRatio);
             }
-            updateParticleColors();
+            // updateParticleColors();
         }
 
         void setupScene(int res) {
             glm::vec3 tank(1.0f);
             glm::vec3 relWater = { 0.6f, 0.8f, 0.6f };
+            m_fRatio = 0.0f;
 
             float _h      = tank.y / res;
             float point_r = 0.3 * _h;
@@ -164,6 +170,7 @@ namespace VCX::Labs::Fluid {
                     }
                 }
             }
+            m_particleRestDensity = m_particlePos.size() / (m_iCellX * m_iCellY * m_iCellZ);
         }
     };
 } // namespace VCX::Labs::Fluid
