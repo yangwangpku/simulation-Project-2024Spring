@@ -55,6 +55,18 @@ namespace VCX::Labs::Fluid {
         return index.x + index.y * m_iCellX + index.z * m_iCellX * m_iCellY;
     }
 
+    inline bool Simulator::isValidVelocity(int i, int j, int k, int dir) {
+        glm::ivec3 cellIndex(i, j, k);
+        if (m_type[index2GridOffset(cellIndex)] == SOLID_CELL) {
+            return false;
+        }
+        cellIndex[dir] += 1;
+        if (m_type[index2GridOffset(cellIndex)] == SOLID_CELL) {
+            return false;
+        }
+        return true;
+    }
+
     void Simulator::transferVelocities(bool toGrid, float flipRatio) {
         if(toGrid) {
             // Clear grid velocities
@@ -74,11 +86,6 @@ namespace VCX::Labs::Fluid {
                     m_type[i] = SOLID_CELL;
                 }
             }
-
-            // copy m_vel to m_pre_vel
-            for (int i = 0; i < m_iNumCells; i++) {
-                m_pre_vel[i] = m_vel[i];
-            }
         }
 
 
@@ -93,9 +100,9 @@ namespace VCX::Labs::Fluid {
 
             m_type[index2GridOffset(cellIndex)] = FLUID_CELL;
 
-            for(int j = 0; j < 3; j++) {
+            for(int dir = 0; dir < 3; dir++) {
                 glm::vec3 gridOffset = glm::vec3(-0.5f) + m_h * glm::vec3(0.5f);
-                gridOffset[j] -= m_h * 0.5f;
+                gridOffset[dir] -= m_h * 0.5f;
                 
                 glm::vec3 posRelGrid = pos - gridOffset;
                 glm::ivec3 cellIndex = glm::ivec3(posRelGrid / m_h);
@@ -109,62 +116,79 @@ namespace VCX::Labs::Fluid {
                 if(toGrid) {
                     // Transfer particle velocities to grid
                     glm::vec3 vel = m_particleVel[i];
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))] += deltaComplement.x * deltaComplement.y * deltaComplement.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))] += delta.x * deltaComplement.y * deltaComplement.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))] += deltaComplement.x * delta.y * deltaComplement.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))] += delta.x * delta.y * deltaComplement.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))] += deltaComplement.x * deltaComplement.y * delta.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))] += delta.x * deltaComplement.y * delta.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))] += deltaComplement.x * delta.y * delta.z;
-                    m_near_num[j][index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))] += delta.x * delta.y * delta.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))] += deltaComplement.x * deltaComplement.y * deltaComplement.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))] += delta.x * deltaComplement.y * deltaComplement.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))] += deltaComplement.x * delta.y * deltaComplement.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))] += delta.x * delta.y * deltaComplement.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))] += deltaComplement.x * deltaComplement.y * delta.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))] += delta.x * deltaComplement.y * delta.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))] += deltaComplement.x * delta.y * delta.z;
+                    m_near_num[dir][index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))] += delta.x * delta.y * delta.z;
                 
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))][j] += vel[j] * deltaComplement.x * deltaComplement.y * deltaComplement.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))][j] += vel[j] * delta.x * deltaComplement.y * deltaComplement.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))][j] += vel[j] * deltaComplement.x * delta.y * deltaComplement.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))][j] += vel[j] * delta.x * delta.y * deltaComplement.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))][j] += vel[j] * deltaComplement.x * deltaComplement.y * delta.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))][j] += vel[j] * delta.x * deltaComplement.y * delta.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))][j] += vel[j] * deltaComplement.x * delta.y * delta.z;
-                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))][j] += vel[j] * delta.x * delta.y * delta.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))][dir] += vel[dir] * deltaComplement.x * deltaComplement.y * deltaComplement.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))][dir] += vel[dir] * delta.x * deltaComplement.y * deltaComplement.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))][dir] += vel[dir] * deltaComplement.x * delta.y * deltaComplement.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))][dir] += vel[dir] * delta.x * delta.y * deltaComplement.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))][dir] += vel[dir] * deltaComplement.x * deltaComplement.y * delta.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))][dir] += vel[dir] * delta.x * deltaComplement.y * delta.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))][dir] += vel[dir] * deltaComplement.x * delta.y * delta.z;
+                    m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))][dir] += vel[dir] * delta.x * delta.y * delta.z;
                 }
                 else {
                     // Transfer grid velocities to particles
                     float vel = 0;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))][j] * deltaComplement.x * deltaComplement.y * deltaComplement.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))][j] * delta.x * deltaComplement.y * deltaComplement.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))][j] * deltaComplement.x * delta.y * deltaComplement.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))][j] * delta.x * delta.y * deltaComplement.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))][j] * deltaComplement.x * deltaComplement.y * delta.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))][j] * delta.x * deltaComplement.y * delta.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))][j] * deltaComplement.x * delta.y * delta.z;
-                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))][j] * delta.x * delta.y * delta.z;
-                    // m_particleVel[i][j] = vel;
-                    // print flipRatio for debugging
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))][dir] * deltaComplement.x * deltaComplement.y * deltaComplement.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))][dir] * delta.x * deltaComplement.y * deltaComplement.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))][dir] * deltaComplement.x * delta.y * deltaComplement.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))][dir] * delta.x * delta.y * deltaComplement.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))][dir] * deltaComplement.x * deltaComplement.y * delta.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))][dir] * delta.x * deltaComplement.y * delta.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))][dir] * deltaComplement.x * delta.y * delta.z;
+                    vel += m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))][dir] * delta.x * delta.y * delta.z;
+
+                    float deltaVel = 0;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 0))][dir]) * deltaComplement.x * deltaComplement.y * deltaComplement.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 0))][dir]) * delta.x * deltaComplement.y * deltaComplement.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 0))][dir]) * deltaComplement.x * delta.y * deltaComplement.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 0))][dir]) * delta.x * delta.y * deltaComplement.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(0, 0, 1))][dir]) * deltaComplement.x * deltaComplement.y * delta.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(1, 0, 1))][dir]) * delta.x * deltaComplement.y * delta.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(0, 1, 1))][dir]) * deltaComplement.x * delta.y * delta.z;
+                    deltaVel += (m_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))][dir] - m_pre_vel[index2GridOffset(cellIndex + glm::ivec3(1, 1, 1))][dir]) * delta.x * delta.y * delta.z;
                     
-                    m_particleVel[i][j] = (vel - m_pre_vel[i][j] + m_particleVel[i][j]) * flipRatio + (1-flipRatio) * vel;
+                    m_particleVel[i][dir] = (deltaVel + m_particleVel[i][dir]) * flipRatio + (1-flipRatio) * vel;
                 }
 
             }
         }
-
         if (toGrid) {
-            // Normalize grid velocities
-            for (int i = 0; i < m_iNumCells; i++) {
-                if (m_s[i] > 0) {
-                    for (int j = 0; j < 3; j++) {
-                        if (m_near_num[j][i] > 0.0f) {
-                            m_vel[i][j] /= m_near_num[j][i];
-                        }
-                        else {
-                            m_vel[i][j] = 0.0f;
+            for (int i=0; i<m_iCellX; i++) {
+                for (int j=0; j<m_iCellY; j++) {
+                    for (int k=0; k<m_iCellZ; k++) {
+                        for (int dir=0; dir < 3; dir ++) {
+                            
+
+                            if (m_near_num[dir][index2GridOffset(glm::ivec3(i, j, k))] > 0.0f && isValidVelocity(i,j,k,dir))
+                            {
+                                m_vel[index2GridOffset(glm::ivec3(i, j, k))][dir] /= m_near_num[dir][index2GridOffset(glm::ivec3(i, j, k))];
+                            }
+                            else {
+                                m_vel[index2GridOffset(glm::ivec3(i, j, k))][dir] = 0.0f;
+                            }
                         }
                     }
                 }
             }
         }
+
     }
 
     void Simulator::solveIncompressibility(int numIters, float dt, float overRelaxation, bool compensateDrift) {
+        // copy m_vel to m_pre_vel
+        for (int i = 0; i < m_iNumCells; i++) {
+            m_pre_vel[i] = m_vel[i];
+        }
+        
         while(numIters--) {
             for(int i = 0; i < m_iCellX; i++) {
                 for(int j = 0; j < m_iCellY; j++) {
@@ -178,7 +202,7 @@ namespace VCX::Labs::Fluid {
                                 +m_vel[index2GridOffset(glm::ivec3(i, j, k + 1))].z);
 
                             if (compensateDrift)    
-                                d -= m_particleDensity[index2GridOffset(glm::ivec3(i, j, k))] - m_particleRestDensity;
+                                d -= 0.1*(m_particleDensity[index2GridOffset(glm::ivec3(i, j, k))] - m_particleRestDensity);
                             float s = m_s[index2GridOffset(glm::ivec3(i + 1, j, k))]
                                 +m_s[index2GridOffset(glm::ivec3(i, j + 1, k))]
                                 +m_s[index2GridOffset(glm::ivec3(i, j, k + 1))]

@@ -65,7 +65,7 @@ namespace VCX::Labs::Fluid {
             int   numPressureIters  = 10;
             bool  separateParticles = true;
             float overRelaxation    = 0.5;
-            bool  compensateDrift   = false;
+            bool  compensateDrift   = true;
 
             float     flipRatio = m_fRatio;
 
@@ -91,7 +91,7 @@ namespace VCX::Labs::Fluid {
         void setupScene(int res) {
             glm::vec3 tank(1.0f);
             glm::vec3 relWater = { 0.6f, 0.8f, 0.6f };
-            m_fRatio = 0.0f;
+            m_fRatio = 0.95f;
 
             float _h      = tank.y / res;
             float point_r = 0.3 * _h;
