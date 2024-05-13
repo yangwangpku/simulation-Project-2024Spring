@@ -17,7 +17,7 @@ namespace VCX::Labs::Fluid {
         }
     }
 
-    void Simulator::handleParticleCollisions(glm::vec3 obstaclePos, float obstacleRadius, glm::vec3 obstacleVel) {
+    void Simulator::handleParticleCollisions() {
         for (int i = 0; i < m_particlePos.size(); i++) {
             if(m_particlePos[i].x < m_h + m_particleRadius - 0.5f) {
                 m_particlePos[i].x = m_h + m_particleRadius - 0.5f;
@@ -47,6 +47,16 @@ namespace VCX::Labs::Fluid {
             if(m_particlePos[i].z > (m_fInvSpacing - 1)*m_h - m_particleRadius - 0.5f) {
                 m_particlePos[i].z = (m_fInvSpacing - 1)*m_h - m_particleRadius - 0.5f;
                 m_particleVel[i].z = 0;
+            }
+
+            // check whether the particle is inside the obstacle
+            if(glm::length(m_particlePos[i] - obstaclePos) < obstacleRadius) {
+                glm::vec3 normal = (m_particlePos[i] - obstaclePos) / (glm::length(m_particlePos[i] - obstaclePos) + 0.0001f);
+                m_particlePos[i] = obstaclePos + obstacleRadius * normal;
+
+                // update the velocity of the particle perpendicular to the obstacle
+                m_particleVel[i] -= glm::dot(m_particleVel[i], normal) * normal;
+                m_particleVel[i] += glm::dot(obstacleVel, normal) * normal;
             }
         }
     }
@@ -166,8 +176,6 @@ namespace VCX::Labs::Fluid {
                 for (int j=0; j<m_iCellY; j++) {
                     for (int k=0; k<m_iCellZ; k++) {
                         for (int dir=0; dir < 3; dir ++) {
-                            
-
                             if (m_near_num[dir][index2GridOffset(glm::ivec3(i, j, k))] > 0.0f && isValidVelocity(i,j,k,dir))
                             {
                                 m_vel[index2GridOffset(glm::ivec3(i, j, k))][dir] /= m_near_num[dir][index2GridOffset(glm::ivec3(i, j, k))];
@@ -202,7 +210,7 @@ namespace VCX::Labs::Fluid {
                                 +m_vel[index2GridOffset(glm::ivec3(i, j, k + 1))].z);
 
                             if (compensateDrift)    
-                                d -= 0.1*(m_particleDensity[index2GridOffset(glm::ivec3(i, j, k))] - m_particleRestDensity);
+                                d -= compensateDriftWeight*(m_particleDensity[index2GridOffset(glm::ivec3(i, j, k))] - m_particleRestDensity);
                             float s = m_s[index2GridOffset(glm::ivec3(i + 1, j, k))]
                                 +m_s[index2GridOffset(glm::ivec3(i, j + 1, k))]
                                 +m_s[index2GridOffset(glm::ivec3(i, j, k + 1))]
@@ -248,19 +256,78 @@ namespace VCX::Labs::Fluid {
         }
     }
 
+    void Simulator::updateParticleColors() {
+        for (int i = 0; i < m_particlePos.size(); i++) {
+            glm::vec3 pos = m_particlePos[i];
+
+            // update m_type
+            glm::vec3 gridOffset = glm::vec3(-0.5f);
+            
+            glm::vec3 posRelGrid = pos - gridOffset;
+            glm::ivec3 cellIndex = glm::ivec3(posRelGrid / m_h);
+
+            m_particleColor[i].x = m_particleDensity[index2GridOffset(cellIndex)] / 30.0f;
+            m_particleColor[i].y = 0;
+            m_particleColor[i].z = 0;
+        }
+    }
+
+    
+
     void Simulator::pushParticlesApart(int numIters) {
+        m_cell_table.clear();
+        m_cell_table.resize(m_cell_res*m_cell_res*m_cell_res, std::vector<int>());
+        for(int i=0; i < m_particlePos.size(); i++) {
+            glm::vec3 pos = m_particlePos[i];
+            glm::vec3 gridOffset = glm::vec3(-0.5f);
+            
+            glm::vec3 posRelGrid = pos - gridOffset;
+            glm::ivec3 cellIndex = glm::ivec3(posRelGrid / m_cell_h);
+
+            m_cell_table[cellIndex.x + cellIndex.y * m_cell_res + cellIndex.z * m_cell_res * m_cell_res].push_back(i);
+        }
+        
         while(numIters--) {
             for(int i=0; i < m_particlePos.size(); i++) {
-                for(int j=i+1; j < m_particlePos.size(); j++) {
-                    glm::vec3 diff = m_particlePos[i] - m_particlePos[j];
-                    float dist = glm::length(diff) + 0.0001f;
-                    if(dist < 2.0f * m_particleRadius) {
-                        glm::vec3 s = 0.5f * (2.0f * m_particleRadius - dist) * (diff) / dist;
-                        m_particlePos[i] += s;
-                        m_particlePos[j] -= s;
+                // only test the particles in the same and neighboring cells
+                glm::vec3 pos = m_particlePos[i];
+                glm::vec3 gridOffset = glm::vec3(-0.5f);
+
+                glm::vec3 posRelGrid = pos - gridOffset;
+                glm::ivec3 cellIndex = glm::ivec3(posRelGrid / m_cell_h);
+
+                for(int x = -1; x <= 1; x++) {
+                    for(int y = -1; y <= 1; y++) {
+                        for(int z = -1; z <= 1; z++) {
+                            int index = cellIndex.x + x + (cellIndex.y + y) * m_cell_res + (cellIndex.z + z) * m_cell_res * m_cell_res;
+                            if(index >= 0 && index < m_cell_table.size()) {
+                                for(int j=0; j < m_cell_table[index].size(); j++) {
+                                    int jIndex = m_cell_table[index][j];
+                                    if(i != jIndex) {
+                                        glm::vec3 diff = m_particlePos[i] - m_particlePos[jIndex];
+                                        float dist = glm::length(diff) + 0.0001f;
+                                        if(dist < 2.0f * m_particleRadius) {
+                                            glm::vec3 s = 0.5f * (2.0f * m_particleRadius - dist) * (diff) / dist;
+                                            m_particlePos[i] += s;
+                                            m_particlePos[jIndex] -= s;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                // for(int j=i+1; j < m_particlePos.size(); j++) {
+                //     glm::vec3 diff = m_particlePos[i] - m_particlePos[j];
+                //     float dist = glm::length(diff) + 0.0001f;
+                //     if(dist < 2.0f * m_particleRadius) {
+                //         glm::vec3 s = 0.5f * (2.0f * m_particleRadius - dist) * (diff) / dist;
+                //         m_particlePos[i] += s;
+                //         m_particlePos[j] -= s;
+                //     }
+                // }
             }
         }
     }
+
 }

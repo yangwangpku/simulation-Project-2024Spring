@@ -2,6 +2,7 @@
 
 #include <imgui_internal.h>
 #include <iostream>
+#include <vector>
 
 #include "Engine/app.h"
 #include "Labs/Common/ForceManager.h"
@@ -46,7 +47,24 @@ glm::vec3 NearestPointOnRayToCubeCenter(const glm::vec3& rayOrigin, const glm::v
     return nearestPointOnRay;
 }
 
+int NearestPointToRay(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, const std::vector<glm::vec3> candidatePoints) {
+    int nearestPoint = 0;
+    float minDistance = std::numeric_limits<float>::max();
+    for (int i=0; i < candidatePoints.size(); i++) {
+        glm::vec3 point = candidatePoints[i];
+        glm::vec3 originToPoint = point - rayOrigin;
 
+        float projectionLength = abs(glm::dot(originToPoint, rayDirection));
+        glm::vec3 nearestPointOnRay = rayOrigin + projectionLength * rayDirection;
+        float distance = glm::length(nearestPointOnRay - point);
+
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestPoint = i;
+        }
+    }
+    return nearestPoint;
+}
 
 
 
@@ -108,5 +126,12 @@ namespace VCX::Labs::Common {
     std::pair<glm::vec3,glm::vec3> ForceManager::getForce(glm::vec3 cubeCenter) {
         return std::pair<glm::vec3,glm::vec3>(_forceDelta,NearestPointOnRayToCubeCenter(_camera.Eye, _rayDirection, cubeCenter));
     }
+
+    std::pair<glm::vec3,int> ForceManager::getForce(std::vector<glm::vec3> candidatePoints) {
+        return std::pair<glm::vec3,int>(_forceDelta,NearestPointToRay(_camera.Eye, _rayDirection, candidatePoints));
+
+    }
+
+    
 
 } // namespace VCX::Labs::Common

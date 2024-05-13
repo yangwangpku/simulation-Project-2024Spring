@@ -5,7 +5,7 @@ int main() {
     using namespace VCX;
     return Engine::RunApp<Labs::FluidSimulation::App>(Engine::AppContextOptions {
         .Title         = "VCX-sim Labs 2: Fluid Simulation",
-        .WindowSize    = {1024, 768},
+        .WindowSize    = {512, 384},
         .FontSize      = 16,
         .IconFileNames = Assets::DefaultIcons,
         .FontFileNames = Assets::DefaultFonts,

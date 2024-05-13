@@ -21,8 +21,8 @@ namespace VCX::Labs::FluidSimulation {
         _scenes(scenes),
         _program(
             Engine::GL::UniqueProgram({
-                Engine::GL::SharedShader("assets/shaders/sphere_phong.vert"),
-                Engine::GL::SharedShader("assets/shaders/phong.frag") })),
+                Engine::GL::SharedShader("assets/shaders/fluid.vert"),
+                Engine::GL::SharedShader("assets/shaders/fluid.frag") })),
         _lineprogram(
             Engine::GL::UniqueProgram({
                 Engine::GL::SharedShader("assets/shaders/flat.vert"),
@@ -35,6 +35,7 @@ namespace VCX::Labs::FluidSimulation {
         _program.GetUniforms().SetByName("u_DiffuseMap" , 0);
         _program.GetUniforms().SetByName("u_SpecularMap", 1);
         _program.GetUniforms().SetByName("u_HeightMap"  , 2);
+
         _lineprogram.GetUniforms().SetByName("u_Color",  glm::vec3(1.0f));
         _BoundaryItem.UpdateElementBuffer(line_index);
         ResetSystem();
@@ -48,9 +49,19 @@ namespace VCX::Labs::FluidSimulation {
         if(ImGui::Button(_stopped ? "Start Simulation":"Stop Simulation"))
             _stopped = ! _stopped;
         ImGui::Spacing();
-        // ImGui::SliderFloat("Mass", &_simulation.Mass, .5f, 5.f);
-        // ImGui::SliderFloat("Omega.", &_simulation.Omega, .1f, 1.f);
-        // ImGui::SliderFloat("Damp.", &_simulation.Damping, .1f, 1.f);
+        ImGui::Checkbox("separateParticles", &_simulation.separateParticles);
+        ImGui::Checkbox("compensateDrift", &_simulation.compensateDrift);
+        ImGui::SliderFloat("Flip Ratio", &_simulation.m_fRatio, 0.0f, 1.0f);
+        ImGui::SliderFloat("compensateDriftWeight", &_simulation.compensateDriftWeight, 0.0f, 1.0f);
+        ImGui::SliderFloat("overRelaxation", &_simulation.overRelaxation, 0.3f, 2.0f);
+        ImGui::SliderInt("numPressureIters", &_simulation.numPressureIters, 5,1000);
+        ImGui::SliderInt("numParticleIters", &_simulation.numParticleIters, 3,10);
+
+        ImGui::SliderFloat("obstacleVel.x", &_simulation.obstacleVel.x, -0.5f, 0.5f);
+        ImGui::SliderFloat("obstacleVel.y", &_simulation.obstacleVel.y, -0.5f, 0.5f);
+        ImGui::SliderFloat("obstacleVel.z", &_simulation.obstacleVel.z, -0.5f, 0.5f);
+        ImGui::SliderFloat("obstacleRadius", &_simulation.obstacleRadius, 0.0f, 0.5f);
+
     }
 
 
@@ -60,6 +71,7 @@ namespace VCX::Labs::FluidSimulation {
             _sceneObject.ReplaceScene(GetScene(_sceneIdx));
             _cameraManager.Save(_sceneObject.Camera);
         }
+        OnProcessMouseControl(_cameraManager.getMouseMove());
         if (! _stopped) _simulation.SimulateTimestep(Engine::GetDeltaTime());
         
         _BoundaryItem.UpdateVertexBuffer("position", Engine::make_span_bytes<glm::vec3>(vertex_pos));
@@ -80,6 +92,7 @@ namespace VCX::Labs::FluidSimulation {
             _program.GetUniforms().SetByName("u_UseGammaCorrection", int(_useGammaCorrection));
             _program.GetUniforms().SetByName("u_AttenuationOrder"  , _attenuationOrder);            
             _program.GetUniforms().SetByName("u_BumpMappingBlend"  , _bumpMappingPercent * .01f);            
+
         }
         
         gl_using(_frame);
@@ -90,11 +103,17 @@ namespace VCX::Labs::FluidSimulation {
         glLineWidth(1.f);
 
         // Rendering::ModelObject m = Rendering::ModelObject(_sphere,_simulation.Positions);
-        Rendering::ModelObject m = Rendering::ModelObject(_sphere,_simulation.m_particlePos);
+        Rendering::ModelObject m = Rendering::ModelObject(_sphere,_simulation.m_particlePos,_simulation.m_particleColor);
         auto const & material    = _sceneObject.Materials[0];
         m.Mesh.Draw({ material.Albedo.Use(),  material.MetaSpec.Use(), material.Height.Use(),_program.Use() },
             _sphere.Mesh.Indices.size(), 0, _simulation.m_iNumSpheres);
         
+        Engine::Model obstacle_sphere = Engine::Model(Engine::Sphere(6,_simulation.obstacleRadius));
+        Rendering::ModelObject obstacle = Rendering::ModelObject(obstacle_sphere, {_simulation.obstaclePos}, {glm::vec3(0.0f,0.0f,1.0f)});
+
+        obstacle.Mesh.Draw({ material.Albedo.Use(),  material.MetaSpec.Use(), material.Height.Use(),_program.Use() },
+            obstacle_sphere.Mesh.Indices.size(), 0, 1);
+
         glDepthFunc(GL_LEQUAL);
         glDepthFunc(GL_LESS);
         glDisable(GL_DEPTH_TEST);
@@ -115,5 +134,11 @@ namespace VCX::Labs::FluidSimulation {
         _simulation.setupScene(_res);
         numofSpheres = _simulation.m_iNumSpheres;
         _r = _simulation.m_particleRadius; //cell size
+    }
+
+    void CaseFluid::OnProcessMouseControl(glm::vec3 mouseDelta) {
+        float movingScale = 0.2f;
+        _simulation.obstaclePos += mouseDelta * movingScale;
+        _simulation.obstacleVel = (mouseDelta * movingScale) / Engine::GetDeltaTime();
     }
 }

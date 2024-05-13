@@ -16,6 +16,7 @@ namespace VCX::Labs::Common {
         void ProcessInput(Engine::Camera& camera, ImVec2 const& mousePos);
         glm::vec3 getForce();
         std::pair<glm::vec3,glm::vec3> getForce(glm::vec3 cubeCenter);  // force with applied point, return force + point
+        std::pair<glm::vec3,int> getForce(std::vector<glm::vec3> candidatePoints);
 
     private:
         glm::vec3 _forceDelta = glm::vec3(0.f);

@@ -18,11 +18,13 @@ namespace VCX::Labs::Fluid {
         std::vector<glm::vec3> m_particleVel; // Particle Velocity
         std::vector<glm::vec3> m_particleColor;
 
-        float m_fRatio;
+        float m_fRatio = 0.95;
         int   m_iCellX;
         int   m_iCellY;
         int   m_iCellZ;
         float m_h;
+        float m_cell_h;
+        int   m_cell_res;
         float m_fInvSpacing;
         int   m_iNumCells;
 
@@ -33,8 +35,7 @@ namespace VCX::Labs::Fluid {
         std::vector<glm::vec3> m_pre_vel;
         std::vector<float>     m_near_num[3];
 
-        std::vector<int> m_hashtable;
-        std::vector<int> m_hashtableindex;
+        std::vector<std::vector<int> > m_cell_table;
 
         std::vector<float> m_p;               // Pressure array
         std::vector<float> m_s;               // 0.0 for solid cells, 1.0 for fluid cells, used to update m_type
@@ -50,7 +51,7 @@ namespace VCX::Labs::Fluid {
 
         void integrateParticles(float timeStep);
         void pushParticlesApart(int numIters);
-        void handleParticleCollisions(glm::vec3 obstaclePos, float obstacleRadius, glm::vec3 obstacleVel);
+        void handleParticleCollisions();
         void updateParticleDensity();
 
         void        transferVelocities(bool toGrid, float flipRatio);
@@ -59,29 +60,33 @@ namespace VCX::Labs::Fluid {
         inline bool isValidVelocity(int i, int j, int k, int dir);
         inline int  index2GridOffset(glm::ivec3 index);
 
+        bool  separateParticles = true;
+        bool  compensateDrift   = true;
+        float overRelaxation    = 0.5;
+        int   numPressureIters  = 500;
+        int   numParticleIters  = 5;
+        float compensateDriftWeight = 0.015;
+        glm::vec3 obstaclePos = glm::vec3(0.0f); // obstacle can be moved with mouse, as a user interaction
+        glm::vec3 obstacleVel = glm::vec3(0.0f);
+        float obstacleRadius = 0.1f;
+
         void SimulateTimestep(float const dt) {
             int   numSubSteps       = 1;
-            int   numParticleIters  = 5;
-            int   numPressureIters  = 10;
-            bool  separateParticles = true;
-            float overRelaxation    = 0.5;
-            bool  compensateDrift   = true;
 
             float     flipRatio = m_fRatio;
 
-            glm::vec3 obstaclePos(0.0f); // obstacle can be moved with mouse, as a user interaction
-            glm::vec3 obstacleVel(0.0f);
 
             float sdt = dt / numSubSteps;
 
             for (int step = 0; step < numSubSteps; step++) {
                 integrateParticles(sdt);
-                handleParticleCollisions(obstaclePos, 0.0, obstacleVel);
+                handleParticleCollisions();
                 if (separateParticles)
                     pushParticlesApart(numParticleIters);
-                handleParticleCollisions(obstaclePos, 0.0, obstacleVel);
+                handleParticleCollisions();
                 transferVelocities(true, flipRatio);
                 updateParticleDensity();
+                updateParticleColors();
                 solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
                 transferVelocities(false, flipRatio);
             }
@@ -91,7 +96,6 @@ namespace VCX::Labs::Fluid {
         void setupScene(int res) {
             glm::vec3 tank(1.0f);
             glm::vec3 relWater = { 0.6f, 0.8f, 0.6f };
-            m_fRatio = 0.95f;
 
             float _h      = tank.y / res;
             float point_r = 0.3 * _h;
@@ -120,10 +124,6 @@ namespace VCX::Labs::Fluid {
             m_particleVel.resize(m_iNumSpheres, glm::vec3(0.0f));
             m_particleColor.clear();
             m_particleColor.resize(m_iNumSpheres, glm::vec3(1.0f));
-            m_hashtable.clear();
-            m_hashtable.resize(m_iNumSpheres, 0);
-            m_hashtableindex.clear();
-            m_hashtableindex.resize(m_iNumCells + 1, 0);
 
             // update grid array
             m_vel.clear();
@@ -143,6 +143,11 @@ namespace VCX::Labs::Fluid {
             m_type.resize(m_iNumCells, 0);
             m_particleDensity.clear();
             m_particleDensity.resize(m_iNumCells, 0.0f);
+
+            m_cell_h = 2.2 * m_particleRadius;
+            m_cell_res = floor(1.0 / m_cell_h);
+            m_cell_table.clear();
+            m_cell_table.resize(m_cell_res*m_cell_res*m_cell_res, std::vector<int>());
 
             // the rest density can be assigned after scene initialization
             m_particleRestDensity = 0.0;
