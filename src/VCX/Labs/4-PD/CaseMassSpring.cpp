@@ -34,6 +34,12 @@ namespace VCX::Labs::PD {
             ImGui::ColorEdit3("Spr. Color", glm::value_ptr(_springColor));
         }
         ImGui::Spacing();
+
+        if (ImGui::CollapsingHeader("Control")) {
+            ImGui::SliderFloat("Force. Scale", &_forceScale, 50, 200);
+            ImGui::SliderFloat("Force. Range", &_forceRange, 0.1, 5.0);
+        }
+        ImGui::Spacing();    
     }
 
     void CaseMassSpring::OnProcessMouseControl(std::pair<glm::vec3,int> force) {
@@ -46,18 +52,15 @@ namespace VCX::Labs::PD {
 
         glm::vec3 pointPos = _massSpringSystem.Positions[pointId];
         
-        float forceScale = 100.0f;
-        float forceRange = 2;
-
         // apply force to the point around the mouse
         for(int i=0; i<_massSpringSystem.Positions.size(); i++)
         {
             glm::vec3 pos = _massSpringSystem.Positions[i];
             glm::vec3 diff = pos - pointPos;
             float dist = glm::length(diff);
-            if(dist < forceRange)
+            if(dist < _forceRange)
             {
-                _massSpringSystem.Forces[i] += forceScale * forceVec * (1 - dist/forceRange);
+                _massSpringSystem.Forces[i] += _forceScale * forceVec * (1 - dist/_forceRange);
             }
         }
 

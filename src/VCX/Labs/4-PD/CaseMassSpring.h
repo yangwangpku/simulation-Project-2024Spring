@@ -35,6 +35,8 @@ namespace VCX::Labs::PD {
         glm::vec3                           _springColor { 0.f, 0.f, 1.f };
         bool                                _stopped { false };
         Common::ForceManager                _forceManager;
+        float                               _forceScale {50.0f};
+        float                               _forceRange  {2.0f};
 
         MassSpringSystem _massSpringSystem;
 
