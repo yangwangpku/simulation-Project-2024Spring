@@ -24,9 +24,7 @@ namespace VCX::Labs::PD {
         float               Damping { .2f };
         float               Gravity { .3f };
 
-        Eigen::SimplicialLLT<Eigen::SparseMatrix<float>> solver;
-
-        void prefactorize_lhs(float const dt) {
+        void prefactorize_lhs(float const dt, Eigen::SimplicialLLT<Eigen::SparseMatrix<float>>& solver) {
             const int                          nDoFs = int(Positions.size()) * 3;
             Eigen::SparseMatrix<float>         matLinearized(nDoFs, nDoFs);
             std::vector<Eigen::Triplet<float>> coefficients;
@@ -52,8 +50,6 @@ namespace VCX::Labs::PD {
             matLinearized.setFromTriplets(coefficients.begin(), coefficients.end());
             solver.compute(matLinearized);
 
-            // print matLinearized for debugging
-            std::cout << "dt:" << dt << std::endl;
         }
 
         void AddParticle(glm::vec3 const & position, glm::vec3 const & velocity = glm::vec3(0)) {
@@ -76,6 +72,12 @@ namespace VCX::Labs::PD {
             std::vector<glm::vec3> original_positions(Positions);
 
             std::vector<glm::vec3> f_ext(Positions.size(), glm::vec3(0, -Gravity, 0) * Mass);
+
+            // add damping force
+            for (std::size_t i = 0; i < Positions.size(); i++) {
+                f_ext[i] += -Damping * Velocities[i];
+            }
+
             for (std::size_t i = 0; i < Positions.size(); i++) {
                 if (Fixed[i]) f_ext[i] = glm::vec3(0);
             }
@@ -131,6 +133,9 @@ namespace VCX::Labs::PD {
                 auto vec_f_ints     = Eigen::Map<Eigen::VectorXf, Eigen::Aligned>(reinterpret_cast<float *>(f_ints.data()), nDoFs);
 
                 Eigen::VectorXf rhsLinearized = Mass*vec_target_diffs/dt/dt + vec_f_ints;
+
+                Eigen::SimplicialLLT<Eigen::SparseMatrix<float>> solver;
+                prefactorize_lhs(dt,solver);
 
                 // prefactorize_lhs(dt);
                 vec_target_diffs = solver.solve(rhsLinearized);

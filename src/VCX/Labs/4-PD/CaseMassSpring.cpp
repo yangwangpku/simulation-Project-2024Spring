@@ -22,7 +22,7 @@ namespace VCX::Labs::PD {
             if (ImGui::Button(_stopped ? "Start Simulation" : "Stop Simulation")) _stopped = ! _stopped;
             ImGui::SliderFloat("Part. Mass", &_massSpringSystem.Mass, .5f, 10.f);
             ImGui::SliderFloat("Spr. Stiff.", &_massSpringSystem.Stiffness, 10.f, 300.f);
-            ImGui::SliderFloat("Spr. Damp.", &_massSpringSystem.Damping, .1f, 10.f);
+            ImGui::SliderFloat("Spr. Damp.", &_massSpringSystem.Damping, 0.0f, 5.f);
             ImGui::SliderFloat("Gravity", &_massSpringSystem.Gravity, .1f, 1.f);
         }
         ImGui::Spacing();
@@ -41,8 +41,6 @@ namespace VCX::Labs::PD {
         
         
         if (! _stopped) {
-            // prefactorize does not work since dt is not fixed!
-            _massSpringSystem.prefactorize_lhs(Engine::GetDeltaTime());
             _massSpringSystem.AdvanceMassSpringSystem(Engine::GetDeltaTime());
         }
 
@@ -83,9 +81,22 @@ namespace VCX::Labs::PD {
     }
 
     void CaseMassSpring::ResetSystem() {
-        // _massSpringSystem       = {};
+
+        // store the mass, stiffness, damping and gravity
+        float const mass = _massSpringSystem.Mass;
+        float const stiffness = _massSpringSystem.Stiffness;
+        float const damping = _massSpringSystem.Damping;
+        float const gravity = _massSpringSystem.Gravity;
+
+        _massSpringSystem       = {};
+        // recover the mass, stiffness, damping and gravity
+        _massSpringSystem.Mass = mass;
+        _massSpringSystem.Stiffness = stiffness;
+        _massSpringSystem.Damping = damping;
+        _massSpringSystem.Gravity = gravity;
+
+
         std::size_t const n     = 10;
-        // std::size_t const n     = 3;
         float const       delta = 2.f / n;
         auto constexpr GetID    = [](std::size_t const i, std::size_t const j) { return i * (n + 1) + j; };
         for (std::size_t i = 0; i <= n; i++) {
