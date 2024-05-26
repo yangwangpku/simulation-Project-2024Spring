@@ -7,6 +7,7 @@
 #include "Labs/Common/ICase.h"
 #include "Labs/Common/ImageRGB.h"
 #include "Labs/Common/OrbitCameraManager.h"
+#include "Labs/Common/ForceManager.h"
 
 
 namespace VCX::Labs::PD {
@@ -19,6 +20,7 @@ namespace VCX::Labs::PD {
         virtual void                     OnSetupPropsUI() override;
         virtual Common::CaseRenderResult OnRender(std::pair<std::uint32_t, std::uint32_t> const desiredSize) override;
         virtual void                     OnProcessInput(ImVec2 const & pos) override;
+        void OnProcessMouseControl(std::pair<glm::vec3,int> force);
 
     private:
         Engine::GL::UniqueProgram           _program;
@@ -32,6 +34,7 @@ namespace VCX::Labs::PD {
         glm::vec3                           _particleColor { 1.f, 0.f, 0.f };
         glm::vec3                           _springColor { 0.f, 0.f, 1.f };
         bool                                _stopped { false };
+        Common::ForceManager                _forceManager;
 
         MassSpringSystem _massSpringSystem;
 

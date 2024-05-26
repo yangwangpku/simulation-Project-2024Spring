@@ -16,6 +16,7 @@ namespace VCX::Labs::PD {
 
         std::vector<glm::vec3> Positions;
         std::vector<glm::vec3> Velocities;
+        std::vector<glm::vec3> Forces;
         std::vector<int>       Fixed;
         float                  Mass { 1 };
 
@@ -56,6 +57,7 @@ namespace VCX::Labs::PD {
             Positions.push_back(position);
             Velocities.push_back(velocity);
             Fixed.push_back(false);
+            Forces.push_back(glm::vec3(0));
         }
 
         void AddSpring(std::size_t const adjIdx0, std::size_t const adjIdx1, float const restLength = -1) {
@@ -76,6 +78,12 @@ namespace VCX::Labs::PD {
             // add damping force
             for (std::size_t i = 0; i < Positions.size(); i++) {
                 f_ext[i] += -Damping * Velocities[i];
+            }
+
+            // add force exerted by user
+            for (std::size_t i = 0; i < Positions.size(); i++) {
+                f_ext[i] += Forces[i];
+                Forces[i] = glm::vec3(0);
             }
 
             for (std::size_t i = 0; i < Positions.size(); i++) {

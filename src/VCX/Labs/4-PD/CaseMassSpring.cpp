@@ -36,10 +36,41 @@ namespace VCX::Labs::PD {
         ImGui::Spacing();
     }
 
+    void CaseMassSpring::OnProcessMouseControl(std::pair<glm::vec3,int> force) {
+        glm::vec3 forceVec = force.first;
+        int pointId = force.second;
+
+        // print forceVec and pointId for debugging
+        // std::cout << "forceVec: " << forceVec.x << " " << forceVec.y << " " << forceVec.z << std::endl;
+        // std::cout << "pointId: " << pointId << std::endl;
+
+        glm::vec3 pointPos = _massSpringSystem.Positions[pointId];
+        
+        float forceScale = 100.0f;
+        float forceRange = 2;
+
+        // apply force to the point around the mouse
+        for(int i=0; i<_massSpringSystem.Positions.size(); i++)
+        {
+            glm::vec3 pos = _massSpringSystem.Positions[i];
+            glm::vec3 diff = pos - pointPos;
+            float dist = glm::length(diff);
+            if(dist < forceRange)
+            {
+                _massSpringSystem.Forces[i] += forceScale * forceVec * (1 - dist/forceRange);
+            }
+        }
+
+
+    }
+
+
     Common::CaseRenderResult CaseMassSpring::OnRender(std::pair<std::uint32_t, std::uint32_t> const desiredSize) {
-        static bool prefactorized = false;
-        
-        
+        // apply mouse control first
+        std::pair<glm::vec3,int> force =  _forceManager.getForce(_massSpringSystem.Positions);
+
+        OnProcessMouseControl(force);
+
         if (! _stopped) {
             _massSpringSystem.AdvanceMassSpringSystem(Engine::GetDeltaTime());
         }
@@ -78,6 +109,7 @@ namespace VCX::Labs::PD {
 
     void CaseMassSpring::OnProcessInput(ImVec2 const & pos) {
         _cameraManager.ProcessInput(_camera, pos);
+        _forceManager.ProcessInput(_camera, pos);
     }
 
     void CaseMassSpring::ResetSystem() {
