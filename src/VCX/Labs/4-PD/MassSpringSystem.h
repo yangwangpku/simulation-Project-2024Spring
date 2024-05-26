@@ -24,6 +24,38 @@ namespace VCX::Labs::PD {
         float               Damping { .2f };
         float               Gravity { .3f };
 
+        Eigen::SimplicialLLT<Eigen::SparseMatrix<float>> solver;
+
+        void prefactorize_lhs(float const dt) {
+            const int                          nDoFs = int(Positions.size()) * 3;
+            Eigen::SparseMatrix<float>         matLinearized(nDoFs, nDoFs);
+            std::vector<Eigen::Triplet<float>> coefficients;
+            
+            const auto AddBlock = [&](int const p0, int const p1, glm::mat3 const & block) {
+                for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 3; j++)
+                        coefficients.emplace_back(p0 * 3 + i, p1 * 3 + j, block[j][i]);
+            };
+
+            for (int i = 0; i < nDoFs; i++) coefficients.emplace_back(i, i, Mass / dt/ dt); // Mass term
+
+            // Hessians
+            for (auto const & spring : Springs) {
+                auto const p0 = spring.AdjIdx.first;
+                auto const p1 = spring.AdjIdx.second;
+                AddBlock(p0, p0, glm::mat3(1.0));
+                AddBlock(p0, p1, -glm::mat3(1.0));
+                AddBlock(p1, p0, -glm::mat3(1.0));
+                AddBlock(p1, p1, glm::mat3(1.0));
+            }
+
+            matLinearized.setFromTriplets(coefficients.begin(), coefficients.end());
+            solver.compute(matLinearized);
+
+            // print matLinearized for debugging
+            std::cout << "dt:" << dt << std::endl;
+        }
+
         void AddParticle(glm::vec3 const & position, glm::vec3 const & velocity = glm::vec3(0)) {
             Positions.push_back(position);
             Velocities.push_back(velocity);
@@ -38,7 +70,7 @@ namespace VCX::Labs::PD {
         }
 
         void AdvanceMassSpringSystem(float const dt) {
-            int total_steps = 32;
+            int total_steps = 3;
 
             // save original positions
             std::vector<glm::vec3> original_positions(Positions);
@@ -63,28 +95,6 @@ namespace VCX::Labs::PD {
                 }
             
                 const int                          nDoFs = int(Positions.size()) * 3;
-                Eigen::SparseMatrix<float>         matLinearized(nDoFs, nDoFs);
-                std::vector<Eigen::Triplet<float>> coefficients;
-                
-                const auto AddBlock = [&](int const p0, int const p1, glm::mat3 const & block) {
-                    for (int i = 0; i < 3; i++)
-                        for (int j = 0; j < 3; j++)
-                            coefficients.emplace_back(p0 * 3 + i, p1 * 3 + j, block[j][i]);
-                };
-
-                for (int i = 0; i < nDoFs; i++) coefficients.emplace_back(i, i, Mass / dt/ dt); // Mass term
-
-                // Hessians
-                for (auto const & spring : Springs) {
-                    auto const p0 = spring.AdjIdx.first;
-                    auto const p1 = spring.AdjIdx.second;
-                    AddBlock(p0, p0, glm::mat3(1.0));
-                    AddBlock(p0, p1, -glm::mat3(1.0));
-                    AddBlock(p1, p0, -glm::mat3(1.0));
-                    AddBlock(p1, p1, glm::mat3(1.0));
-                }
-
-                matLinearized.setFromTriplets(coefficients.begin(), coefficients.end());
 
                 std::vector<glm::vec3> f_ints(Positions.size(), glm::vec3(0, 0, 0));
                 for (auto const & spring : Springs) {
@@ -122,7 +132,7 @@ namespace VCX::Labs::PD {
 
                 Eigen::VectorXf rhsLinearized = Mass*vec_target_diffs/dt/dt + vec_f_ints;
 
-                auto solver   = Eigen::SimplicialLLT<Eigen::SparseMatrix<float>>(matLinearized);
+                // prefactorize_lhs(dt);
                 vec_target_diffs = solver.solve(rhsLinearized);
 
                 // print matLinearized and rhsLinearized for debugging
@@ -130,19 +140,11 @@ namespace VCX::Labs::PD {
                 // std::cout << "rhsLinearized:" << rhsLinearized << std::endl;
 
 
-                // print total_steps and the norm of delta_positions for debugging
-                std::cout << total_steps << std::endl;
-                std::cout << vec_target_diffs.norm() << std::endl;
-
                 for (std::size_t i = 0; i < Positions.size(); i++) {
                     for (int j = 0; j < 3; j++)
                         Positions[i][j] += vec_target_diffs[i*3+j];
                 }
-
-
             }
-
-            exit(0);
 
             for (std::size_t i = 0; i < Positions.size(); i++) {
                 Velocities[i] = (Positions[i]-original_positions[i]) / dt;

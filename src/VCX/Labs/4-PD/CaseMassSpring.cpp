@@ -12,6 +12,7 @@ namespace VCX::Labs::PD {
         _cameraManager.AutoRotate = false;
         _cameraManager.Save(_camera);
         ResetSystem();
+
     }
 
     void CaseMassSpring::OnSetupPropsUI() {
@@ -36,7 +37,14 @@ namespace VCX::Labs::PD {
     }
 
     Common::CaseRenderResult CaseMassSpring::OnRender(std::pair<std::uint32_t, std::uint32_t> const desiredSize) {
-        if (! _stopped) _massSpringSystem.AdvanceMassSpringSystem(Engine::GetDeltaTime());
+        static bool prefactorized = false;
+        
+        
+        if (! _stopped) {
+            // prefactorize does not work since dt is not fixed!
+            _massSpringSystem.prefactorize_lhs(Engine::GetDeltaTime());
+            _massSpringSystem.AdvanceMassSpringSystem(Engine::GetDeltaTime());
+        }
 
         _particlesItem.UpdateVertexBuffer("position", Engine::make_span_bytes<glm::vec3>(_massSpringSystem.Positions));
         _springsItem.UpdateVertexBuffer("position", Engine::make_span_bytes<glm::vec3>(_massSpringSystem.Positions));
@@ -75,7 +83,7 @@ namespace VCX::Labs::PD {
     }
 
     void CaseMassSpring::ResetSystem() {
-        _massSpringSystem       = {};
+        // _massSpringSystem       = {};
         std::size_t const n     = 10;
         // std::size_t const n     = 3;
         float const       delta = 2.f / n;
@@ -101,5 +109,6 @@ namespace VCX::Labs::PD {
             indices.push_back(std::uint32_t(spring.AdjIdx.second));
         }
         _springsItem.UpdateElementBuffer(indices);
+
     }
 } // namespace VCX::Labs::GettingStarted
